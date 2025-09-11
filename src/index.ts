@@ -4,6 +4,7 @@ import { Flags } from "lighthouse";
 import fs from "fs";
 import minimist from "minimist";
 import path from "path";
+import puppeteer from "puppeteer";
 
 type Metrics = {
   run: number;
@@ -21,7 +22,7 @@ type MetricsResponse = { metrics: Metrics; htmlReport: string };
 async function runLighthouse(
   url: string,
   run: number,
-  cookie: string
+  cookieCart: string // keeping this parameter for backwards compatibility
 ): Promise<MetricsResponse> {
   const lighthouse = (await import("lighthouse")).default;
 
@@ -35,19 +36,41 @@ async function runLighthouse(
     ],
   });
 
-  // Define extraHeaders object
-  const extraHeaders: Record<string, string> = {};
-  if (cookie) {
-    extraHeaders["Cookie"] = cookie;
+  // Set up Puppeteer
+  const browser = await puppeteer.connect({
+    browserURL: `http://localhost:${chrome.port}`,
+  });
+
+  // Set cookies using browser context
+  const context = browser.defaultBrowserContext();
+  const hostname = new URL(url).hostname;
+
+  // Set cookies only if cookie parameter is provided
+  if (cookieCart) {
+    await context.setCookie(
+      {
+        name: 'modern',
+        value: 'true',
+        domain: hostname,
+        path: '/',
+      },
+      {
+        name: 'DCSG-CART',
+        value: cookieCart,
+        domain: hostname,
+        path: '/',
+      }
+    );
   }
+
+  // Disconnect from browser after setting cookies
+  await browser.disconnect();
 
   const options: Flags = {
     logLevel: "error",
     output: "html",
     onlyCategories: ["performance"],
-    port: chrome.port,
-    // Add extraHeaders directly to the options
-    extraHeaders: extraHeaders,
+    port: chrome.port
   };
 
   console.log("Console is warming up");
@@ -74,8 +97,11 @@ async function runLighthouse(
   const htmlReport = runnerResult?.report as string;
 
   // Kill the chrome instance
-  await chrome.kill();
-  console.log("Closing chrome, please wait");
+  chrome.kill();
+  
+  // Wait a bit to ensure Chrome process is terminated
+  await new Promise(resolve => setTimeout(resolve, 500));
+  console.log("Chrome closed successfully");
 
   return { metrics, htmlReport };
 }
@@ -112,11 +138,11 @@ async function main() {
   const url = argv.url || argv.u;
   const fileName = argv.reports || argv.rep || "lighthouse-report-run";
   const runs = parseInt(argv.runs || argv.r || "5", 10);
-  const cookie = argv.cookie || argv.c;
+  const cookie = argv["cookie-cart"];
 
   if (!url) {
     console.error(
-      "Usage: tsx src/index.ts --url <URL> [--runs <number>] [--cookie <cookie_value>]"
+      "Usage: tsx src/index.ts --url <URL> [--runs <number>] [--cookie-cart <cart_value>]"
     );
     process.exit(1);
   }

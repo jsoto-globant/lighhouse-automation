@@ -12,63 +12,93 @@ function percentDiff(pre: number, post: number): number {
   return ((post - pre) / pre) * 100;
 }
 
-function createComparisonHtml(preMedian: any, postMedian: any, description: string): string {
-  const metrics = ["fcp", "lcp", "tbt", "cls", "si", "score"];
-  function formatNumber(value: number): string {
-    return value.toFixed(2);
+function formatNumber(value: number): string {
+  return value.toFixed(2);
+}
+
+function isImprovement(metric: string, diff: number): boolean {
+  if (diff === 0) return false;
+  return metric === "score" ? diff > 0 : diff < 0;
+}
+
+function getColorAndDisplayValue(
+  metric: string,
+  diff: number
+): { color: string; displayValue: string } {
+  if (diff === 0) {
+    return {
+      color: "black",
+      displayValue: "0.00",
+    };
   }
 
-  const tableRows = metrics.map(metric => {
-    const preVal = preMedian[metric];
-    const postVal = postMedian[metric];
-    const diff = percentDiff(preVal, postVal);
-    let color = 'black';
-    if (diff !== 0) {
-      if (metric === 'score') {
-        color = diff > 0 ? 'green' : 'red';
-      } else {
-        color = diff < 0 ? 'green' : 'red';
-      }
-    }
-    return `<tr><td>${metric.toUpperCase()}</td><td>${formatNumber(preVal)}</td><td>${formatNumber(postVal)}</td><td style="color:${color}">${formatNumber(diff)}%</td></tr>`;
-  }).join("");
+  const improvement = isImprovement(metric, diff);
+  return {
+    color: improvement ? "green" : "red",
+    displayValue: improvement
+      ? formatNumber(Math.abs(diff))
+      : `-${formatNumber(Math.abs(diff))}`,
+  };
+}
+
+function createComparisonHtml(
+  preMedian: any,
+  postMedian: any,
+  description: string
+): string {
+  const metrics = ["fcp", "lcp", "tbt", "cls", "si", "score"];
+
+  const tableRows = metrics
+    .map((metric) => {
+      const preVal = preMedian[metric];
+      const postVal = postMedian[metric];
+      const diff = percentDiff(preVal, postVal);
+      const { color, displayValue } = getColorAndDisplayValue(metric, diff);
+
+      return `<tr><td>${metric.toUpperCase()}</td><td>${formatNumber(
+        preVal
+      )}</td><td>${formatNumber(
+        postVal
+      )}</td><td style="color:${color}">${displayValue}%</td></tr>`;
+    })
+    .join("");
 
   return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Median Comparison Table</title>
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 2em; }
-    h1 { color: #333; text-align: center; margin-bottom: 1em; }
-    .description { color: #666; text-align: center; margin-bottom: 2em; font-size: 1.1em; }
-    table { border-collapse: collapse; width: 100%; max-width: 600px; margin: 2em auto; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    th, td { padding: 0.75em 1em; text-align: center; }
-    th { background: #4a90e2; color: #fff; font-weight: 600; }
-    tr:nth-child(even) { background: #f0f4f8; }
-    tr:hover { background: #e6f7ff; }
-    td { border-bottom: 1px solid #eaeaea; }
-  </style>
-</head>
-<body>
-  <h1>Lighthouse Performance Comparison</h1>
-  <div class="description">${description}</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Metric</th>
-        <th>Before</th>
-        <th>After</th>
-        <th>% Change</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${tableRows}
-    </tbody>
-  </table>
-</body>
-</html>`;
+        <html lang="en">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Median Comparison Table</title>
+        <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 2em; }
+            h1 { color: #333; text-align: center; margin-bottom: 1em; }
+            .description { color: #666; text-align: center; margin-bottom: 2em; font-size: 1.1em; }
+            table { border-collapse: collapse; width: 100%; max-width: 600px; margin: 2em auto; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+            th, td { padding: 0.75em 1em; text-align: center; }
+            th { background: #4a90e2; color: #fff; font-weight: 600; }
+            tr:nth-child(even) { background: #f0f4f8; }
+            tr:hover { background: #e6f7ff; }
+            td { border-bottom: 1px solid #eaeaea; }
+        </style>
+        </head>
+        <body>
+        <h1>Lighthouse Performance Comparison</h1>
+        <div class="description">${description}</div>
+        <table>
+            <thead>
+            <tr>
+                <th>Metric</th>
+                <th>Before</th>
+                <th>After</th>
+                <th>% Change</th>
+            </tr>
+            </thead>
+            <tbody>
+            ${tableRows}
+            </tbody>
+        </table>
+        </body>
+        </html>`;
 }
 
 function main() {
@@ -76,18 +106,21 @@ function main() {
   const prePath = argv.pre;
   const postPath = argv.post;
   const fileName = argv.out || "comparison-table.html";
-  const description = argv.description || argv.desc || "Median Comparison Table";
-  
+  const description =
+    argv.description || argv.desc || "Median Comparison Table";
+
   // Create comparisonResults directory if it doesn't exist
   const resultsDir = path.join(__dirname, "..", "comparisonResults");
   if (!fs.existsSync(resultsDir)) {
     fs.mkdirSync(resultsDir);
   }
-  
+
   const outPath = path.join(resultsDir, fileName);
 
   if (!prePath || !postPath) {
-    console.error("Usage: tsx compare-medians.ts --pre pre-file.json --post post-file.json [--out output.html]");
+    console.error(
+      "Usage: tsx compare-medians.ts --pre pre-file.json --post post-file.json [--out output.html]"
+    );
     process.exit(1);
   }
 

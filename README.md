@@ -24,11 +24,15 @@ npx tsx src/index.ts --url <URL> [options]
 - `--url` or `-u`: Target URL to test (required)
 - `--runs` or `-r`: Number of test runs (default: 5)
 - `--reports` or `--rep`: Name for the report files (default: "lighthouse-report-run")
-- `--cookie` or `-c`: Cookie string for authenticated pages (optional)
+- `--cookie-cart`: Cart cookie value for authenticated pages (optional)
 
-#### Example:
+#### Examples:
 ```bash
+# Basic usage
 npx tsx src/index.ts --url http://localhost:4000/my-page --reports pre-release --runs 5
+
+# With cart cookie for authenticated pages
+npx tsx src/index.ts --url http://localhost:4000/my-page --reports pre-release --runs 5 --cookie-cart "your-cart-cookie-value"
 ```
 
 #### Outputs:
